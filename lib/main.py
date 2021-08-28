@@ -1,31 +1,35 @@
 import pygame
 import sys
 
-# main entry point
+from lib.screens import gameScreen, menuScreen
+from lib.constants import WIDTH, HEIGHT
+
+
 def main():
     pygame.init()
-    width, height = 1280, 720
-    speed = [2, 2]
-    black = (0, 0, 0)
 
-    screen = pygame.display.set_mode(size=(width, height))
+    screen = pygame.display.set_mode(size=(WIDTH, HEIGHT))
+    current_screen = menuScreen((WIDTH, HEIGHT))
 
-    ball = pygame.image.load("media/layout.png")
-    ballrect = ball.get_rect()
+    clock = pygame.time.Clock()
 
     while True:
+        clock.tick(30)
+
+        current_screen.draw()
+        screen.blit(current_screen, (0, 0))
+
+        # Update the scenes
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 sys.exit()
 
-        # ballrect = ballrect.move(speed)
-        # if ballrect.left < 0 or ballrect.right > width:
-        #     speed[0] = -speed[0]
-        # if ballrect.top < 0 or ballrect.bottom > height:
-        #     speed[1] = -speed[1]
+            if isinstance(
+                (new_screen := current_screen.handle_event(event, gameScreen)),
+                gameScreen,
+            ):
+                current_screen = new_screen
 
-        screen.fill(black)
-        screen.blit(ball, ballrect)
         pygame.display.update()
 
 
