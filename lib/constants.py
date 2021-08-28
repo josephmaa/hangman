@@ -1,4 +1,8 @@
 import pygame
+import string
+
+# Characters
+ALPHABET = set(string.ascii_lowercase + string.ascii_uppercase)
 
 # Font sizes
 DEFAULT_FONT_SIZE = 32
