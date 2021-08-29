@@ -1,7 +1,7 @@
 import pygame
 
 from lib.constants import COLOR_ACTIVE, RED, DEFAULT_FONT_SIZE
-from lib.logic import is_valid_guess, is_valid_length_in_dictionary
+from lib.util import is_valid_guess, is_valid_length_in_dictionary
 from lib.parser import parse_dictionary
 
 
