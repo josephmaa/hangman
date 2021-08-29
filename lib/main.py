@@ -9,6 +9,7 @@ def main():
     pygame.init()
 
     display_screen = pygame.display.set_mode(size=(WIDTH, HEIGHT))
+    pygame.display.set_caption("Hangman")
     current_screen = menuScreen((WIDTH, HEIGHT))
 
     clock = pygame.time.Clock()
@@ -24,7 +25,11 @@ def main():
             if event.type == pygame.QUIT:
                 sys.exit()
 
-            if isinstance((new_screen := current_screen.handle_event(event)),gameScreen):
+            if isinstance(
+                (new_screen := current_screen.handle_event(event)), gameScreen
+            ):
+                current_screen = new_screen
+            elif isinstance(new_screen, menuScreen):
                 current_screen = new_screen
 
         pygame.display.update()

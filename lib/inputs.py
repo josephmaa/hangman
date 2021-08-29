@@ -1,36 +1,27 @@
 import pygame
 
-from lib.constants import COLOR_ACTIVE, COLOR_INACTIVE, RED, DEFAULT_FONT_SIZE, ALPHABET
-from lib.logic import is_valid_guess, is_valid_word_in_dictionary
+from lib.constants import COLOR_ACTIVE, RED, DEFAULT_FONT_SIZE
+from lib.logic import is_valid_guess, is_valid_length_in_dictionary
 from lib.parser import parse_dictionary
 
 
 class inputBox:
     def __init__(self, x: int, y: int, width: int, height: int, text: str = ""):
         self.text_bounding_box = pygame.Rect(x, y, width, height)
-        self.color = COLOR_INACTIVE
+        self.color = COLOR_ACTIVE
         self.text = text
         self.font = pygame.font.SysFont("monospace", DEFAULT_FONT_SIZE)
         self.txt_surface = self.font.render(text, True, self.color)
-        self.active = False
         self._prompt_for_input = False
 
     def handle_event(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            # If the user clicks on the input_box, toggle the active variable
-            if self.text_bounding_box.collidepoint(event.pos):
-                self.active = not self.active
-                self.color = COLOR_ACTIVE
-            else:
-                self.active = False
         if event.type == pygame.KEYDOWN:
-            if self.active:
-                if event.key == pygame.K_BACKSPACE:
-                    self.text = self.text[:-1]
-                else:
-                    self.text += event.unicode
-                # Re-render the text.
-                self.txt_surface = self.font.render(self.text, True, self.color)
+            if event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+            else:
+                self.text += event.unicode
+            # Re-render the text.
+            self.txt_surface = self.font.render(self.text, True, self.color)
 
     def prompt_for_valid_input(self):
         self._prompt_for_input = True
@@ -42,6 +33,7 @@ class inputBox:
         self.text_bounding_box.width = width
 
     def draw(self, screen):
+        self.update()
         # Blit the text.
         screen.blit(
             self.txt_surface,
@@ -51,7 +43,7 @@ class inputBox:
         pygame.draw.rect(screen, self.color, self.text_bounding_box, 2)
 
 
-class menuWordBox(inputBox):
+class menuLengthBox(inputBox):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._dictionary_path = "media/dictionary.txt"
@@ -60,32 +52,27 @@ class menuWordBox(inputBox):
         """
         Overloads the default input box template so that it can handle the specific instruction.
         """
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            # If the user clicks on the input_box, toggle the active variable
-            if self.text_bounding_box.collidepoint(event.pos):
-                self.active = not self.active
-                self.color = COLOR_ACTIVE
-            else:
-                self.active = False
         if event.type == pygame.KEYDOWN:
-            if self.active:
-                if event.key == pygame.K_BACKSPACE:
-                    self.text = self.text[:-1]
-                elif event.key == pygame.K_RETURN:
-                    map_word_length_to_words = parse_dictionary(self._dictionary_path)
-                    if is_valid_word_in_dictionary(map_word_length_to_words, self.text):
-                        return self.text.strip()
-                    else:
-                        self.prompt_for_valid_input()
+            if event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+            elif event.key == pygame.K_RETURN:
+                map_word_length_to_words = parse_dictionary(self._dictionary_path)
+                self.text = self.text.strip()
+                if self.text.isnumeric() and is_valid_length_in_dictionary(
+                    map_word_length_to_words, int(self.text)
+                ):
+                    return int(self.text)
                 else:
-                    self.text += event.unicode
-                # Re-render the text.
-                self.txt_surface = self.font.render(self.text, True, self.color)
+                    self.prompt_for_valid_input()
+            else:
+                self.text += event.unicode
+            # Re-render the text.
+            self.txt_surface = self.font.render(self.text, True, self.color)
 
     def draw(self, screen):
         if self._prompt_for_input:
             # Draw a prompt text message in the top right corner of the box
-            prompt_instructions = "Please input a valid word"
+            prompt_instructions = "Please input a valid length/number of guesses"
             prompt_font = pygame.font.SysFont("monospace", 20)
             prompt_text = prompt_font.render(prompt_instructions, True, RED)
             screen.blit(
@@ -109,7 +96,7 @@ class menuWordBox(inputBox):
         pygame.draw.rect(screen, self.color, self.text_bounding_box, 2)
 
 
-class menuGuessesBox(inputBox):
+class menuGuessBox(inputBox):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -117,26 +104,18 @@ class menuGuessesBox(inputBox):
         """
         Overloads the default input box template so that it can handle the specific instruction.
         """
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            # If the user clicks on the input_box, toggle the active variable
-            if self.text_bounding_box.collidepoint(event.pos):
-                self.active = not self.active
-                self.color = COLOR_ACTIVE
-            else:
-                self.active = False
         if event.type == pygame.KEYDOWN:
-            if self.active:
-                if event.key == pygame.K_BACKSPACE:
-                    self.text = self.text[:-1]
-                elif event.key == pygame.K_RETURN:
-                    if self.text.isnumeric() and is_valid_guess(int(self.text)):
-                        return int(self.text)
-                    else:
-                        self.prompt_for_valid_input()
+            if event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+            elif event.key == pygame.K_RETURN:
+                if self.text.isnumeric() and is_valid_guess(int(self.text)):
+                    return int(self.text)
                 else:
-                    self.text += event.unicode
-                # Re-render the text.
-                self.txt_surface = self.font.render(self.text, True, self.color)
+                    self.prompt_for_valid_input()
+            else:
+                self.text += event.unicode
+            # Re-render the text.
+            self.txt_surface = self.font.render(self.text, True, self.color)
 
     def draw(self, screen):
         if self._prompt_for_input:

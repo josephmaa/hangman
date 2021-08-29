@@ -1,9 +1,22 @@
 from abc import abstractmethod
 import pygame
-from pygame.constants import K_RETURN
+import random
 
-from lib.constants import ALPHABET, BLACK, DEFAULT_FONT_SIZE, RED, WHITE, WIDTH, HEIGHT
-from lib.inputs import menuWordBox, menuGuessesBox
+from typing import Optional
+from lib.constants import (
+    ALPHABET,
+    BLACK,
+    DEFAULT_FONT_SIZE,
+    DEFAULT_SMALL_FONT_SIZE,
+    RED,
+    WHITE,
+    WIDTH,
+    HEIGHT,
+    LINE_SPACING,
+    PATH_TO_DICTIONARY,
+)
+from lib.inputs import menuLengthBox, menuGuessBox
+from lib.parser import parse_dictionary
 
 
 class genericScreen(pygame.Surface):
@@ -11,7 +24,10 @@ class genericScreen(pygame.Surface):
         super(genericScreen, self).__init__(resolution)
         self._instructions = ""
         self._resolution = resolution
-        self._monospace = pygame.font.SysFont("monospace", DEFAULT_FONT_SIZE)
+        self._monospace_small = pygame.font.SysFont(
+            "monospace", DEFAULT_SMALL_FONT_SIZE
+        )
+        self._monospace_large = pygame.font.SysFont("monospace", DEFAULT_FONT_SIZE)
 
     @abstractmethod
     def draw(self):
@@ -24,38 +40,54 @@ class genericScreen(pygame.Surface):
     def draw_text(
         self,
         text: str = "",
-        width: int = WIDTH / 2,
-        height: int = HEIGHT / 2,
         color: pygame.Color = WHITE,
+        x: int = WIDTH / 2 - 300,
+        y: int = HEIGHT / 2 - 100,
+        width: int = 600,
+        height: int = 200,
+        font: Optional[pygame.font.SysFont] = None,
     ) -> None:
-        text_size = self._monospace.size(text)
-        text = self._monospace.render(text, True, color)
-        self.blit(
-            text,
-            (
-                width - text_size[0] / 2,
-                height - text_size[1] / 2,
-            ),
-        )
+        bounding_box = pygame.rect.Rect(x, y, width, height)
+        y = bounding_box.top
+        if not font:
+            font = self._monospace_large
+        font_height = font.size(text)[1]
+
+        while text:
+            i = 1
+            if y + font_height > bounding_box.bottom:
+                break
+            while font.size(text[:i])[0] < bounding_box.width and i < len(text):
+                i += 1
+            if i < len(text):
+                i = text.rfind(" ", 0, i) + 1
+            image = font.render(text[:i], True, color)
+            self.blit(image, (bounding_box.left, y))
+            y += font_height + LINE_SPACING
+            text = text[i:]
 
     def draw_warning(
         self,
         text: str = "",
-        width: int = WIDTH / 2,
-        height: int = HEIGHT / 2,
+        x: int = WIDTH / 2 - 300,
+        y: int = HEIGHT / 2 - 100,
+        width: int = 600,
+        height: int = 200,
         color: pygame.Color = RED,
     ) -> None:
-        return self.draw_text(text=text, width=width, height=height, color=color)
+        return self.draw_text(
+            text=text, x=x, y=y, width=width, height=height, color=color
+        )
 
 
 class menuScreen(genericScreen):
     def __init__(self, resolution: tuple[float, float] = (WIDTH, HEIGHT)):
         super(menuScreen, self).__init__(resolution)
         self._instructions = (
-            "Type in a word for hangman below and press enter when ready: "
+            "Type in the length of the word and press enter when ready: "
         )
         self._text = ""
-        self._menu_box = menuWordBox(
+        self._menu_box = menuLengthBox(
             x=(WIDTH / 2 - 300), y=(HEIGHT / 2 + 100), width=300, height=200
         )
         self._guesses = None
@@ -72,9 +104,10 @@ class menuScreen(genericScreen):
     def handle_event(self, event):
         # Handle the child input box event
         if not self._text:
-            if isinstance((text_input := self._menu_box.handle_event(event)), str):
-                self._text = text_input
-                self._menu_box = menuGuessesBox(
+            if isinstance((length_input := self._menu_box.handle_event(event)), int):
+                dictionary = parse_dictionary(PATH_TO_DICTIONARY)
+                self._text = random.choice(dictionary[length_input])
+                self._menu_box = menuGuessBox(
                     x=(WIDTH / 2 - 300),
                     y=(HEIGHT / 2 + 100),
                     width=300,
@@ -111,40 +144,51 @@ class gameScreen(genericScreen):
         self.draw_background()
 
         if self._win:
-            self.draw_text(text="You win! Press enter to play again")
+            self.draw_text(
+                text=f"You win, the word was {self._text}! Press enter to play again"
+            )
         elif self._lost:
-            self.draw_text(text="You lost! Press enter to play again", color=RED)
+            self.draw_text(
+                text=f"You lost, the word was {self._text}! Press enter to play again",
+                color=RED,
+            )
         else:
             if self._warning:
                 self.draw_warning(
                     text=self._warning,
-                    width=WIDTH / 2,
-                    height=7 * HEIGHT / 8,
+                    y=5 * HEIGHT / 8,
                 )
 
-            self.draw_text(text=self._instructions, width=WIDTH / 2, height=HEIGHT / 4)
-            self.draw_text(text=self._shown, width=WIDTH / 2, height=HEIGHT / 2)
+            self.draw_text(
+                text=f"The character's you've seen so far: {sorted(list(self._seen))}",
+                y=HEIGHT / 8,
+                font=self._monospace_small,
+            )
+            self.draw_text(
+                text=self._instructions,
+                y=HEIGHT / 4,
+            )
+            self.draw_text(text=self._shown)
             self.draw_text(
                 text=f"Number of remaining guesses: {self._remaining_guesses}",
-                width=WIDTH / 2,
-                height=3 * HEIGHT / 4,
+                y=3 * HEIGHT / 4,
             )
 
-    def handle_event(self, event, *args, **kwargs):
+    def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
             # Reset the warnings if there are any
             self._warning = ""
-
-            if self._win or self._lost and event == K_RETURN:
+            if (self._win or self._lost) and event.key == pygame.K_RETURN:
                 return menuScreen(self._resolution)
             else:
                 unicode_character = event.unicode
                 if unicode_character in self._seen:
-                    self._warning = "Character has already been used"
+                    self._warning = (
+                        f"Character {unicode_character} has already been used"
+                    )
                 elif unicode_character not in ALPHABET:
-                    self._warning = "Character not in alphabet"
+                    self._warning = f"Character {unicode_character} not in alphabet"
                 else:
-                    self._remaining_guesses -= 1
                     self._seen.add(unicode_character)
 
                     if unicode_character in self._text:
@@ -156,8 +200,13 @@ class gameScreen(genericScreen):
                                 for i, c in enumerate(self._text)
                             ]
                         )
+                    else:
+                        self._remaining_guesses -= 1
+
                     # Re-render the text.
-                    self.txt_surface = self._monospace.render(self._shown, True, WHITE)
+                    self.txt_surface = self._monospace_large.render(
+                        self._shown, True, WHITE
+                    )
 
         # If at any point, there are no more "-" in shown characters, the player has won
         if "-" not in self._shown:
