@@ -17,6 +17,7 @@ from lib.constants import (
 )
 from lib.inputs import menuLengthBox, menuGuessBox
 from lib.parser import parse_dictionary
+from lib.strategy import generate_word_families, pick_largest_word_family
 
 
 class genericScreen(pygame.Surface):
@@ -86,7 +87,7 @@ class menuScreen(genericScreen):
         self._instructions = (
             "Type in the length of the word and press enter when ready: "
         )
-        self._text = ""
+        self._length_input = 0
         self._menu_box = menuLengthBox(
             x=(WIDTH / 2 - 300), y=(HEIGHT / 2 + 100), width=300, height=200
         )
@@ -103,10 +104,9 @@ class menuScreen(genericScreen):
 
     def handle_event(self, event):
         # Handle the child input box event
-        if not self._text:
+        if not self._length_input:
             if isinstance((length_input := self._menu_box.handle_event(event)), int):
-                dictionary = parse_dictionary(PATH_TO_DICTIONARY)
-                self._text = random.choice(dictionary[length_input])
+                self._length_input = length_input
                 self._menu_box = menuGuessBox(
                     x=(WIDTH / 2 - 300),
                     y=(HEIGHT / 2 + 100),
@@ -120,32 +120,35 @@ class menuScreen(genericScreen):
             if isinstance((guess_input := self._menu_box.handle_event(event)), int):
                 self._guesses = guess_input
         else:
-            return gameScreen(self._resolution, self._text, self._guesses)
+            return gameScreen(self._resolution, self._length_input, self._guesses)
 
 
 class gameScreen(genericScreen):
     def __init__(
         self,
         resolution: tuple[float, float] = (1280, 720),
-        text: str = "",
+        length_input: int = 0,
         guesses: int = 0,
     ):
         super(gameScreen, self).__init__(resolution)
         self._win = False
         self._lost = False
-        self._text = text
-        self._shown = str("-" * len(text))
+        self._word_families = parse_dictionary(PATH_TO_DICTIONARY)[length_input]
+        print(self._word_families)
+        self._shown = str("-" * length_input)
         self._remaining_guesses = guesses
         self._instructions = "Press any character to start guessing."
         self._seen = set()
         self._warning = ""
+        # Set this randomly for the loss text
+        self._text = ""
 
     def draw(self):
         self.draw_background()
 
         if self._win:
             self.draw_text(
-                text=f"You win, the word was {self._text}! Press enter to play again"
+                text=f"You win, the word was {self._shown}! Press enter to play again"
             )
         elif self._lost:
             self.draw_text(
@@ -180,6 +183,8 @@ class gameScreen(genericScreen):
             self._warning = ""
             if (self._win or self._lost) and event.key == pygame.K_RETURN:
                 return menuScreen(self._resolution)
+            elif self._win or self._lost:
+                pass
             else:
                 unicode_character = event.unicode
                 if unicode_character in self._seen:
@@ -191,16 +196,19 @@ class gameScreen(genericScreen):
                 else:
                     self._seen.add(unicode_character)
 
-                    if unicode_character in self._text:
-                        self._shown = "".join(
-                            [
-                                c
-                                if self._shown[i] != "-" or c == unicode_character
-                                else "-"
-                                for i, c in enumerate(self._text)
-                            ]
-                        )
-                    else:
+                    word_families = generate_word_families(
+                        character=unicode_character,
+                        words=self._word_families,
+                        existing_characters=self._shown,
+                    )
+
+                    new_shown, new_word_family = pick_largest_word_family(word_families)
+
+                    self._shown = new_shown
+                    self._word_families = new_word_family
+
+                    # If no appeared change has been made, reduce the counter
+                    if new_shown == self._shown:
                         self._remaining_guesses -= 1
 
                     # Re-render the text.
@@ -209,7 +217,8 @@ class gameScreen(genericScreen):
                     )
 
         # If at any point, there are no more "-" in shown characters, the player has won
-        if "-" not in self._shown:
+        if len(self._word_families) == 0:
             self._win = True
         elif self._remaining_guesses == 0:
             self._lost = True
+            self._text = random.choice(self._word_families)
